@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>CraftFlow</title>
+<style>
+  :root{
+    --bg:#f4f3ef; --surface:#ffffff; --surface2:#f1efe8; --line:#e3e1d8;
+    --text:#23221f; --muted:#6b6a64; --hint:#9a988f;
+    --info:#185fa5; --infobg:#e6f1fb; --infoline:#85b7eb;
+    --danger:#a32d2d; --dangerbg:#fcebeb; --dangerline:#f09595;
+    --ok:#27500a; --okbg:#eaf3de; --warn:#633806; --warnbg:#faeeda;
+    --coral:#712b13; --coralbg:#faece7; --purple:#3c3489; --purplebg:#eeedfe; --gray:#444441;
+    --r:10px; --r2:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:15px;line-height:1.5}
+  button{font-family:inherit;font-size:14px;cursor:pointer;border:0.5px solid var(--line);background:var(--surface);color:var(--text);padding:8px 14px;border-radius:var(--r);transition:background .12s}
+  button:hover{background:var(--surface2)} button:active{transform:scale(0.98)}
+  button.primary{border-color:var(--infoline);color:var(--info)} button.primary:hover{background:var(--infobg)}
+  input,select{font-family:inherit;font-size:14px;padding:9px 11px;border:0.5px solid var(--line);border-radius:var(--r);background:var(--surface);color:var(--text);width:100%}
+  input:focus,select:focus{outline:none;border-color:var(--infoline);box-shadow:0 0 0 3px var(--infobg)}
+  label{display:block;font-size:13px;color:var(--muted);margin-bottom:5px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;font-weight:500;padding:10px 12px;background:var(--surface2)}
+  td{padding:10px 12px;border-top:0.5px solid var(--line)}
+  .wrap{max-width:920px;margin:0 auto;padding:18px}
+  .card{background:var(--surface);border:0.5px solid var(--line);border-radius:var(--r2);padding:14px 16px;margin-bottom:12px}
+  .pill{font-size:12px;padding:3px 10px;border-radius:999px;white-space:nowrap;display:inline-block}
+  .metric{background:var(--surface2);border-radius:var(--r);padding:14px 16px}
+  .metric .l{font-size:13px;color:var(--muted)} .metric .v{font-size:23px;font-weight:500;margin-top:2px}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .av{width:26px;height:26px;border-radius:50%;background:var(--surface2);color:var(--muted);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;border:1.5px solid var(--surface)}
+  .av.lead{background:var(--infobg);color:var(--info)}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+  .tabs button.on{border-color:var(--infoline);color:var(--info);background:var(--infobg)}
+  .topbar{background:var(--surface);border-bottom:0.5px solid var(--line);padding:12px 18px;display:flex;align-items:center;justify-content:space-between}
+  .brand{font-weight:500;font-size:17px;letter-spacing:.3px} .brand b{color:var(--info)}
+  .phone{max-width:400px;margin:0 auto;background:var(--surface2);border-radius:22px;padding:16px}
+  .seg{display:flex;gap:6px;margin-bottom:12px} .seg button{flex:1}
+  .muted{color:var(--muted)} .hint{color:var(--hint);font-size:12px}
+  .num{font-weight:500;color:var(--muted);letter-spacing:1px}
+  a.link{color:var(--info);cursor:pointer;text-decoration:none;font-size:14px}
+  .chip{cursor:pointer;display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;border:0.5px solid var(--line);font-size:13px;background:var(--surface)}
+  .chip.on{background:var(--infobg);color:var(--info);border-color:var(--infoline);font-weight:500}
+  .dropwrap{min-height:88px;border:1px dashed var(--line);border-radius:var(--r);padding:8px;display:flex;flex-wrap:wrap;gap:8px;align-content:flex-start}
+  .ucard{display:flex;align-items:center;gap:8px;background:var(--surface);border:0.5px solid var(--line);border-radius:999px;padding:4px 12px 4px 4px;cursor:grab;font-size:13px;user-select:none}
+  .ucard:hover{background:var(--surface2)}
+  .ldr{font-size:11px;border-radius:999px;padding:1px 7px;color:var(--info);background:var(--infobg)}
+  .right{text-align:right} .center{text-align:center}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:640px){.grid4,.grid3{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div id="app"></div>
+<script>
+"use strict";
+// ===== config =====
+var SB_URL="https://qbrdkxkioheqyuzttmro.supabase.co";
+var SB_KEY="sb_publishable_oklfcbNZBKDqXbk4aAHoTQ_D42Uuaz6";
+
+var STATUS={
+  ny:{sv:"Ny",bg:"--surface2",fg:"--gray"}, schemalagd:{sv:"Schemalagd",bg:"--infobg",fg:"--info"},
+  tilldelad:{sv:"Tilldelad",bg:"--infobg",fg:"--info"}, pagaende:{sv:"Pågående",bg:"--warnbg",fg:"--warn"},
+  material:{sv:"Väntar på material",bg:"--coralbg",fg:"--coral"}, slutford:{sv:"Slutförd",bg:"--okbg",fg:"--ok"},
+  omdome:{sv:"Omdöme registrerat",bg:"--okbg",fg:"--ok"}, fakturerad:{sv:"Fakturerad",bg:"--purplebg",fg:"--purple"},
+  avslutad:{sv:"Avslutad",bg:"--okbg",fg:"--ok"}, avbruten:{sv:"Avbruten",bg:"--surface2",fg:"--muted"}
+};
+var FLOW=["ny","schemalagd","tilldelad","pagaende","material","slutford","omdome","fakturerad","avslutad"];
+var BONUS={5:0.07,4:0.05}; var SELLER_RATE=0.05;
+
+var sb=null, DB=null, SESSION=null, COMPANY=null, BUSY=false;
+var VIEW={tab:"jobb",jobId:null,addSrc:"lager",authed:false};
+
+// ===== helpers =====
+function el(id){return document.getElementById(id);}
+function esc(s){return (s==null?"":String(s)).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+function kr(n){return Math.round(n||0).toLocaleString("sv-SE")+" kr";}
+function person(id){var p=DB.people.find(function(x){return x.id===id;});return p?p.name:"";}
+function first(id){return (person(id)||"").split(" ")[0];}
+function ini(n){return (n||"").split(" ").map(function(w){return w[0];}).join("");}
+function pill(st){var s=STATUS[st]||STATUS.ny;return '<span class="pill" style="background:var('+s.bg+');color:var('+s.fg+')">'+s.sv+'</span>';}
+function avatars(ids,lead){return '<span style="display:inline-flex">'+ids.map(function(id,i){return '<span class="av'+(id===lead?' lead':'')+'" title="'+esc(person(id))+'" style="margin-left:'+(i?'-7px':'0')+'">'+esc(ini(person(id)))+'</span>';}).join("")+'</span>';}
+function normalizeRules(p){p=p||{};var m=p.montor||{};return {montor:{5:Number(m[5]!=null?m[5]:0.07),4:Number(m[4]!=null?m[4]:0.05)},saljare_rate:Number(p.saljare_rate!=null?p.saljare_rate:0.05)};}
+function bonusRate(r){var m=(DB&&DB.bonusRules&&DB.bonusRules.montor)||BONUS;return m[r]||0;}
+function sellerRate(){return (DB&&DB.bonusRules&&typeof DB.bonusRules.saljare_rate==="number")?DB.bonusRules.saljare_rate:SELLER_RATE;}
+function pct(x){return Math.round(x*1000)/10;}
+function jobBonus(j){return j.review?Math.round(j.rev*bonusRate(j.review)):0;}
+function sellerComm(j){return Math.round(j.rev*sellerRate());}
+function fmtWhen(ts){ if(!ts) return ""; try{var d=new Date(ts);return d.toLocaleDateString("sv-SE")+" "+d.toLocaleTimeString("sv-SE",{hour:"2-digit",minute:"2-digit"});}catch(e){return "";} }
+
+// ===== data layer =====
+function client(){ if(!sb){ sb=window.supabase.createClient(SB_URL,SB_KEY); } return sb; }
+
+async function loadAll(){
+  var s=client();
+  var users=await s.from("users").select("id,name,role,email,company_id").eq("active",true);
+  if(users.error) throw users.error;
+  var people=users.data||[];
+  COMPANY=people.length?people[0].company_id:null;
+  var types=await s.from("job_types").select("id,name,default_duration").eq("active",true);
+  var custs=await s.from("customers").select("id,name");
+  var inv=await s.from("inventory_items").select("*").order("name");
+  var jobsR=await s.from("jobs").select(
+    "*, customers(name), job_types(name), job_assignments(user_id,role_on_job), reviews(rating,submitted_at), "+
+    "job_materials(source,item_name,store_name,quantity,unit_cost_at_time,inventory_items(name)), "+
+    "time_entries(duration_minutes), photos(type,storage_path)"
+  ).order("job_number",{ascending:false});
+  if(jobsR.error) throw jobsR.error;
+  var moves=await s.from("inventory_movements").select(
+    "change_qty,reason,created_at,reference_job_id,inventory_items(name),users(name)"
+  ).order("created_at",{ascending:false}).limit(10);
+  var abs=await s.from("absences").select("id,user_id,day,reason").order("day");
+  var absData=(abs&&!abs.error&&abs.data)?abs.data:[];
+  var br=await s.from("bonus_rules").select("id,params").limit(1);
+  var brRow=(br&&!br.error&&br.data&&br.data[0])?br.data[0]:null;
+  var adj=await s.from("bonus_adjustments").select("id,user_id,amount,reason,created_at").order("created_at",{ascending:false});
+  var adjData=(adj&&!adj.error&&adj.data)?adj.data:[];
+
+  var typeMap={}; (types.data||[]).forEach(function(t){typeMap[t.name]={id:t.id,def:t.default_duration};});
+  var custMap={}; (custs.data||[]).forEach(function(c){custMap[c.name]=c.id;});
+
+  DB={
+    people:people,
+    types:(types.data||[]).map(function(t){return t.name;}),
+    typeMap:typeMap,
+    customers:(custs.data||[]).map(function(c){return c.name;}),
+    custMap:custMap,
+    inventory:(inv.data||[]).map(function(i){return {id:i.id,sku:i.sku,name:i.name,cat:i.category,unit:i.unit,cost:Number(i.unit_cost),stock:Number(i.stock_qty),reorder:Number(i.reorder_level)};}),
+    moves:(moves.data||[]).map(function(m){return {item:(m.inventory_items&&m.inventory_items.name)||"",qty:Number(m.change_qty),why:m.reason==='used_on_job'?'Jobb':m.reason==='restock'?'Inleverans':'Justering',by:(m.users&&m.users.name)||"",when:fmtWhen(m.created_at)};}),
+    jobs:(jobsR.data||[]).map(mapJob),
+    absences:absData,
+    bonusRulesId:brRow?brRow.id:null,
+    bonusRules:normalizeRules(brRow&&brRow.params),
+    adjustments:adjData
+  };
+}
+function mapJob(j){
+  var a=j.job_assignments||[];
+  var mont=a.filter(function(x){return x.role_on_job==='lead'||x.role_on_job==='helper';});
+  var lead=(a.find(function(x){return x.role_on_job==='lead';})||{}).user_id || (mont[0]&&mont[0].user_id);
+  var sal=(a.find(function(x){return x.role_on_job==='saljare';})||{}).user_id || null;
+  var mins=(j.time_entries||[]).reduce(function(s,t){return s+(Number(t.duration_minutes)||0);},0);
+  var revObj=(j.reviews&&j.reviews.length)?j.reviews[0]:null;
+  return {
+    id:j.id, num:j.job_number, kund:(j.customers&&j.customers.name)||"", typ:(j.job_types&&j.job_types.name)||"",
+    adress:j.service_address||"", region:j.region||"", status:j.status,
+    montorer:mont.map(function(x){return x.user_id;}), lead:lead, saljare:sal,
+    rev:Number(j.total_revenue)||0, est:Number(j.estimated_hours)||0, hours:Math.round(mins/60*10)/10,
+    review:revObj?revObj.rating:null, reviewDate:revObj?revObj.submitted_at:null, completedAt:j.completed_at||null,
+    mats:(j.job_materials||[]).map(function(m){return {src:m.source,name:m.item_name||(m.inventory_items&&m.inventory_items.name)||"",qty:Number(m.quantity),store:m.store_name,cost:Number(m.unit_cost_at_time)||0};}),
+    photos:(j.photos||[]).map(function(p){return {type:p.type,path:p.storage_path};})
+  };
+}
+function photoUrl(path){ return SB_URL+"/storage/v1/object/public/job-photos/"+path; }
+function openImg(url){ window.open(url,"_blank"); }
+function photoCol(j,type,label){
+  var ph=(j.photos||[]).filter(function(p){return p.type===type;});
+  var thumbs=ph.map(function(p){var u=photoUrl(p.path);return '<img src="'+u+'" style="width:100%;border-radius:8px;margin-bottom:6px;cursor:pointer;display:block" onclick="openImg(\''+u+'\')">';}).join("");
+  var iid="ph_"+type+"_"+j.id;
+  return '<div style="flex:1">'
+   +'<div class="hint center" style="margin-bottom:6px">'+label+(ph.length?' ('+ph.length+')':'')+'</div>'+thumbs
+   +'<input type="file" id="'+iid+'" accept="image/*" capture="environment" style="display:none" onchange="uploadPhoto(\''+j.id+'\',\''+type+'\',this)">'
+   +'<button style="width:100%" onclick="document.getElementById(\''+iid+'\').click()">+ Foto</button></div>';
+}
+function uploadPhoto(jobId,type,input){
+  var f=input&&input.files&&input.files[0]; if(!f)return;
+  run(async function(){
+    var s=client();
+    var ext=((f.name||"foto.jpg").split(".").pop()||"jpg").toLowerCase();
+    var path=jobId+"/"+type+"-"+Date.now()+"."+ext;
+    var up=await s.storage.from("job-photos").upload(path,f,{contentType:f.type||"image/jpeg",upsert:false});
+    if(up.error)throw up.error;
+    var ins=await s.from("photos").insert({job_id:jobId,type:type,storage_path:path,taken_by:SESSION});
+    if(ins.error)throw ins.error;
+  });
+}
+async function refresh(){ await loadAll(); render(); }
+async function run(fn){
+  if(BUSY) return; BUSY=true;
+  try{ await fn(); await loadAll(); }
+  catch(e){ alert("Fel mot databasen: "+(e.message||e)); }
+  finally{ BUSY=false; render(); }
+}
+
+// ===== boot / auth (Supabase email + password) =====
+var ME=null;
+function render(){
+  if(!SESSION) return renderLogin();
+  if(SESSION==="__pending__"||!DB) return renderLoading();
+  var u=DB.people.find(function(p){return p.id===SESSION;});
+  if(!u){ return renderLogin(); }
+  if(u.role==="montor") return renderMontor(u);
+  return renderOffice(u);
+}
+function renderLoading(){ el("app").innerHTML='<div class="wrap center" style="padding-top:18vh"><div class="brand" style="font-size:26px">Craft<b>Flow</b></div><div class="muted" style="margin-top:10px">Laddar...</div></div>'; }
+function renderLogin(msg){
+  el("app").innerHTML='<div class="wrap" style="max-width:380px;padding-top:13vh">'
+  +'<div class="center" style="margin-bottom:22px"><div class="brand" style="font-size:26px">Craft<b>Flow</b></div><div class="muted" style="margin-top:4px">Pureflow Ventilation AB</div></div>'
+  +'<div class="card"><label>E-post</label><input id="email" type="email" autocomplete="username" placeholder="namn@pureflow.se">'
+  +'<label style="margin-top:10px">Lösenord</label><input id="pw" type="password" autocomplete="current-password" onkeydown="if(event.key===\'Enter\')signIn()">'
+  +'<button class="primary" style="width:100%;margin-top:12px" onclick="signIn()">Logga in</button>'
+  +'<div id="loginerr" class="center" style="color:var(--danger);font-size:13px;margin-top:8px">'+(msg?esc(msg):'')+'</div>'
+  +'<div class="center" style="margin-top:10px"><a class="link" onclick="forgotPassword()">Glömt lösenord?</a></div></div></div>';
+  setTimeout(function(){var e=el("email");if(e)e.focus();},50);
+}
+async function signIn(){
+  var email=(el("email").value||"").trim(); var pw=el("pw").value||"";
+  if(!email||!pw){ el("loginerr").textContent="Fyll i e-post och lösenord."; return; }
+  el("loginerr").textContent="Loggar in...";
+  try{
+    var res=await client().auth.signInWithPassword({email:email,password:pw});
+    if(res.error){ el("loginerr").textContent="Fel e-post eller lösenord."; return; }
+    await afterLogin(res.data.user);
+  }catch(e){ el("loginerr").textContent="Kunde inte logga in: "+(e.message||e); }
+}
+async function afterLogin(authUser){
+  SESSION="__pending__"; renderLoading();
+  try{
+    await loadAll();
+    var email=((authUser&&authUser.email)||"").toLowerCase();
+    var me=DB.people.find(function(p){return (p.email||"").toLowerCase()===email;});
+    if(!me){ SESSION=null; ME=null; renderLogin("Inloggningen är inte kopplad till en anställd. Kontakta admin."); return; }
+    ME=me; SESSION=me.id; VIEW.tab="jobb"; VIEW.jobId=null; render();
+  }catch(e){ SESSION=null; renderLogin("Kunde inte ladda data: "+(e.message||e)); }
+}
+async function logout(){ try{ await client().auth.signOut(); }catch(e){} SESSION=null; ME=null; DB=null; renderLogin(); }
+function isRecoveryUrl(){ var h=(window.location.hash||"")+(window.location.search||""); return /type=(invite|recovery|signup)/.test(h); }
+async function boot(){
+  renderLogin();
+  try{
+    var s=await client().auth.getSession();
+    if(s.data&&s.data.session){
+      if(isRecoveryUrl()){ renderSetPassword(); return; }
+      await afterLogin(s.data.session.user); return;
+    }
+  }catch(e){}
+}
+function renderSetPassword(){
+  el("app").innerHTML='<div class="wrap" style="max-width:380px;padding-top:13vh">'
+  +'<div class="center" style="margin-bottom:22px"><div class="brand" style="font-size:26px">Craft<b>Flow</b></div><div class="muted" style="margin-top:4px">Välj ett lösenord</div></div>'
+  +'<div class="card"><label>Nytt lösenord</label><input id="np" type="password" autocomplete="new-password" placeholder="Minst 8 tecken">'
+  +'<label style="margin-top:10px">Bekräfta lösenord</label><input id="np2" type="password" autocomplete="new-password" onkeydown="if(event.key===\'Enter\')setPassword()">'
+  +'<button class="primary" style="width:100%;margin-top:12px" onclick="setPassword()">Spara lösenord</button>'
+  +'<div id="sperr" class="center" style="color:var(--danger);font-size:13px;margin-top:8px"></div></div></div>';
+  setTimeout(function(){var e=el("np");if(e)e.focus();},50);
+}
+async function setPassword(){
+  var p1=el("np").value||"", p2=el("np2").value||"";
+  if(p1.length<8){ el("sperr").textContent="Minst 8 tecken."; return; }
+  if(p1!==p2){ el("sperr").textContent="Lösenorden matchar inte."; return; }
+  el("sperr").textContent="Sparar...";
+  try{
+    var res=await client().auth.updateUser({password:p1});
+    if(res.error){ el("sperr").textContent="Kunde inte spara: "+res.error.message; return; }
+    if(window.history&&window.history.replaceState){ window.history.replaceState(null,"",window.location.pathname); }
+    await afterLogin(res.data.user);
+  }catch(e){ el("sperr").textContent="Fel: "+(e.message||e); }
+}
+async function forgotPassword(){
+  var email=prompt("Ange din e-post så skickar vi en återställningslänk:"); if(!email)return;
+  try{
+    var res=await client().auth.resetPasswordForEmail(email.trim(),{redirectTo:window.location.origin+window.location.pathname});
+    if(res.error){ alert("Kunde inte skicka: "+res.error.message); return; }
+    alert("Återställningslänk skickad till "+email+".");
+  }catch(e){ alert("Fel: "+(e.message||e)); }
+}
+
+// ===== montör =====
+function renderMontor(u){
+  if(VIEW.jobId) return renderJob(u,true);
+  var mine=DB.jobs.filter(function(j){return j.montorer.indexOf(u.id)>=0 && ["avslutad","avbruten"].indexOf(j.status)<0;});
+  var myAbs=(DB.absences||[]).filter(function(a){return a.user_id===u.id && a.day>=todayISO();}).sort(function(a,b){return a.day<b.day?-1:1;});
+  var periods=groupAbsences(myAbs);
+  var bMonth=montorBonus(u.id,true), bTotal=montorBonus(u.id,false);
+  var bonusCard='<div class="card"><div style="font-size:15px;font-weight:500;margin-bottom:8px">Min bonus</div><div class="grid2"><div class="metric"><div class="l">Denna månad</div><div class="v">'+kr(bMonth)+'</div></div><div class="metric"><div class="l">Totalt</div><div class="v">'+kr(bTotal)+'</div></div></div></div>';
+  var availCard='<div class="card"><div style="font-size:15px;font-weight:500;margin-bottom:4px">Min tillgänglighet</div>'
+   +'<div class="hint" style="margin-bottom:8px">Du är tillgänglig som standard. Markera en period du är ledig.</div>'
+   +'<div class="grid2"><div><label>Från</label><input type="date" id="abs_from"></div><div><label>Till</label><input type="date" id="abs_to"></div></div>'
+   +'<div style="margin-top:8px"><label>Anledning (valfritt)</label><input id="abs_reason" placeholder="t.ex. semester, VAB, utbildning"></div>'
+   +'<button class="primary" style="width:100%;margin-top:10px" onclick="addAbsenceRange()">Markera ledig</button>'
+   +(periods.length?('<div style="margin-top:12px">'+periods.map(function(p){return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:14px;padding:7px 0;border-top:0.5px solid var(--line)"><span>'+p.from+(p.to!==p.from?(' – '+p.to):'')+(p.reason?(' <span class="hint">· '+esc(p.reason)+'</span>'):'')+'</span><button onclick="removePeriod(\''+p.ids.join(",")+'\')">Ta bort</button></div>';}).join("")+'</div>'):'<div class="hint" style="margin-top:10px">Inga lediga dagar registrerade.</div>')
+   +'</div>';
+  el("app").innerHTML=topbar(u)+'<div class="wrap"><div class="phone">'
+  +'<div style="margin-bottom:14px"><div style="font-size:18px;font-weight:500">Mina jobb</div><div class="muted" style="font-size:13px">'+esc(u.name)+' · Montör</div></div>'
+  +bonusCard
+  +(mine.length?mine.map(jobCard).join(""):'<div class="card center muted">Inga aktiva jobb just nu.</div>')
+  +availCard+'</div></div>';
+}
+function jobCard(j){
+  return '<div class="card" style="cursor:pointer" onclick="openJob(\''+j.id+'\')">'
+  +'<div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:6px"><span><span class="num">'+j.num+'</span> &nbsp;<b style="font-weight:500">'+esc(j.kund)+'</b></span>'+pill(j.status)+'</div>'
+  +'<div class="muted" style="font-size:13px;margin-bottom:6px">'+esc(j.typ)+'</div>'
+  +'<div class="muted" style="font-size:13px;margin-bottom:8px">'+esc(j.adress)+'</div>'
+  +'<div style="display:flex;justify-content:space-between;align-items:center">'+avatars(j.montorer,j.lead)+'<span class="muted" style="font-size:12px">'+j.hours+' h / '+j.est+' h uppsk.</span></div></div>';
+}
+function openJob(id){VIEW.jobId=id;render();}
+function closeJob(){VIEW.jobId=null;render();}
+
+function renderJob(u,phone){
+  var j=DB.jobs.find(function(x){return x.id===VIEW.jobId;});
+  if(!j){closeJob();return;}
+  var lagerMats=j.mats.filter(function(m){return m.src==="lager";});
+  var butikMats=j.mats.filter(function(m){return m.src==="butik";});
+  var pct=j.est>0?Math.min(100,Math.round(j.hours/j.est*100)):0;
+  var back=phone?"Mina jobb":"Alla jobb";
+  var body=''
+  +'<a class="link" onclick="closeJob()">&larr; '+back+'</a>'
+  +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin:12px 0 14px"><div style="display:flex;gap:10px;align-items:baseline"><span class="num" style="font-size:18px">'+j.num+'</span><div><div style="font-size:18px;font-weight:500">'+esc(j.kund)+'</div><div class="muted" style="font-size:13px">'+esc(j.typ)+'</div></div></div>'+pill(j.status)+'</div>'
+  +'<div class="card"><div class="muted" style="font-size:13px;margin-bottom:8px">Team</div>'
+  +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+avatars(j.montorer,j.lead)+'<span class="muted" style="font-size:12px">'+j.montorer.map(first).join(", ")+'</span></div>'
+  +'<div style="display:flex;justify-content:space-between;border-top:0.5px solid var(--line);padding-top:8px"><span class="muted" style="font-size:13px">Säljare</span><span style="font-size:13px">'+esc(person(j.saljare))+'</span></div></div>'
+  +'<div class="card"><div class="muted" style="font-size:13px;margin-bottom:4px">Adress</div><div>'+esc(j.adress)+'</div></div>'
+  +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="muted" style="font-size:13px">Arbetad tid</div><div style="font-size:20px;font-weight:500">'+j.hours+' h <span class="muted" style="font-size:13px;font-weight:400">av '+j.est+' h uppskattat</span></div></div><button onclick="addHours(\''+j.id+'\')">+ Logga tid</button></div>'
+  +'<div style="height:6px;background:var(--surface2);border-radius:3px;margin-top:10px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--info)"></div></div></div>'
+  +'<div class="card"><div class="muted" style="font-size:13px;margin-bottom:8px">Material</div>'
+  +'<div class="hint" style="margin-bottom:4px">Från lager</div>'
+  +(lagerMats.length?lagerMats.map(function(m){return '<div style="display:flex;justify-content:space-between;font-size:14px;padding:4px 0"><span>'+esc(m.name)+'</span><span class="muted">'+m.qty+' '+'st</span></div>';}).join(""):'<div class="hint" style="padding:2px 0 6px">—</div>')
+  +'<div class="hint" style="margin:8px 0 4px">Köpt i butik</div>'
+  +(butikMats.length?butikMats.map(function(m){return '<div style="display:flex;justify-content:space-between;font-size:14px;padding:4px 0"><span>'+esc(m.name)+' <span class="hint">· '+esc(m.store||"")+'</span></span><span class="muted">'+kr(m.cost||0)+'</span></div>';}).join(""):'<div class="hint" style="padding:2px 0 6px">—</div>')
+  +'<div id="matform"></div>'
+  +'<button style="width:100%;margin-top:8px" onclick="toggleMat(\''+j.id+'\')">+ Lägg till material</button></div>'
+  +'<div class="card"><div class="muted" style="font-size:13px;margin-bottom:8px">Foton (före / efter)</div><div class="row">'
+  +photoCol(j,"before","Före")+photoCol(j,"after","Efter")+'</div></div>'
+  +statusActions(j);
+  el("app").innerHTML=topbar(u)+'<div class="wrap">'+(phone?'<div class="phone">'+body+'</div>':body)+'</div>';
+}
+function statusActions(j){
+  var idx=FLOW.indexOf(j.status);
+  var html='<div class="card"><div class="muted" style="font-size:13px;margin-bottom:8px">Status</div><div class="row">';
+  if(idx>=0&&idx<FLOW.length-1){var next=FLOW[idx+1];html+='<button class="primary" onclick="setStatus(\''+j.id+'\',\''+next+'\')">Flytta till: '+STATUS[next].sv+'</button>';}
+  if(["material","slutford","omdome","fakturerad","avslutad"].indexOf(j.status)<0){html+='<button onclick="setStatus(\''+j.id+'\',\'material\')">Väntar på material</button>';}
+  html+='</div></div>';
+  var u=DB.people.find(function(p){return p.id===SESSION;});
+  if(u&&u.role!=="montor"){
+    html+='<div class="card"><div class="muted" style="font-size:13px;margin-bottom:8px">Omdöme</div>'
+    +(j.review?('<div>Registrerat: '+"★".repeat(j.review)+' &nbsp;<span class="hint">bonus '+kr(jobBonus(j))+' (delas på '+j.montorer.length+')</span></div>'):'<button onclick="addReview(\''+j.id+'\')">Registrera omdöme</button>')+'</div>';
+  }
+  return html;
+}
+function setStatus(id,st){ run(async function(){ var r=await client().from("jobs").update({status:st}).eq("id",id); if(r.error)throw r.error; }); }
+function addHours(id){
+  var v=prompt("Antal timmar att lägga till:","1"); if(v===null)return;
+  var n=parseFloat(String(v).replace(",",".")); if(isNaN(n)||n<=0)return;
+  run(async function(){
+    var s=client();
+    var r=await s.from("time_entries").insert({job_id:id,user_id:SESSION,duration_minutes:Math.round(n*60)}); if(r.error)throw r.error;
+    var j=DB.jobs.find(function(x){return x.id===id;});
+    if(j&&(j.status==="tilldelad"||j.status==="schemalagd")){ await s.from("jobs").update({status:"pagaende"}).eq("id",id); }
+  });
+}
+function toggleMat(id){var box=el("matform");if(box.dataset.open==="1"){box.dataset.open="0";box.innerHTML="";return;}box.dataset.open="1";renderMatForm(id);}
+function setMatSrc(id,s){VIEW.addSrc=s;renderMatForm(id);}
+function renderMatForm(id){
+  var box=el("matform"); var s=VIEW.addSrc; var inv=DB.inventory; var j=DB.jobs.find(function(x){return x.id===id;});
+  var body='<div style="border:0.5px solid var(--line);border-radius:var(--r);padding:12px;margin-top:10px">'
+  +'<div class="seg"><button class="'+(s==="lager"?"on":"")+'" onclick="setMatSrc(\''+id+'\',\'lager\')">Lager</button><button class="'+(s==="butik"?"on":"")+'" onclick="setMatSrc(\''+id+'\',\'butik\')">Butik</button></div>';
+  if(s==="lager"){
+    body+='<label>Artikel</label><select id="mi">'+inv.map(function(it){return '<option value="'+it.id+'">'+esc(it.name)+' ('+it.stock+' i lager)</option>';}).join("")+'</select>'
+    +'<label style="margin-top:8px">Antal</label><input id="mq" type="number" value="1" min="1">';
+  }else{
+    body+='<label>Vad köptes</label><input id="mn" placeholder="t.ex. Böjar 200mm × 3">'
+    +'<div class="grid2" style="margin-top:8px"><div><label>Butik</label><input id="ms" placeholder="Ahlsell"></div><div><label>Kostnad (kr)</label><input id="mc" type="number" placeholder="540"></div></div>'
+    +'<div class="hint" style="margin-top:8px">Uppge jobbnummer <b>'+(j?j.num:"")+'</b> i butiken.</div>';
+  }
+  body+='<button class="primary" style="width:100%;margin-top:10px" onclick="saveMat(\''+id+'\')">Lägg till</button></div>';
+  box.innerHTML=body;
+}
+function saveMat(id){
+  var src=VIEW.addSrc;
+  if(src==="lager"){
+    var iid=el("mi").value; var qty=parseFloat(el("mq").value)||0; if(qty<=0)return;
+    run(async function(){ var r=await client().from("job_materials").insert({job_id:id,source:"lager",inventory_item_id:iid,quantity:qty,logged_by:SESSION}); if(r.error)throw r.error; });
+  }else{
+    var name=(el("mn").value||"").trim(); if(!name)return;
+    var store=(el("ms").value||"").trim(); var cost=parseFloat(el("mc").value)||0;
+    run(async function(){ var r=await client().from("job_materials").insert({job_id:id,source:"butik",item_name:name,store_name:store,quantity:1,unit_cost_at_time:cost,logged_by:SESSION}); if(r.error)throw r.error; });
+  }
+}
+function addReview(id){
+  var v=prompt("Omdöme 1–5:","5"); if(v===null)return; var r=parseInt(v,10); if(!(r>=1&&r<=5))return;
+  run(async function(){
+    var s=client();
+    var j=DB.jobs.find(function(x){return x.id===id;});
+    var ins=await s.from("reviews").insert({job_id:id,rating:r,verified:true}); if(ins.error)throw ins.error;
+    if(j&&j.status==="slutford"){ await s.from("jobs").update({status:"omdome"}).eq("id",id); }
+  });
+}
+
+// ===== office =====
+function topbar(u){
+  var role=u.role==="agare"?"Ägare":u.role==="saljare"?"Säljare":u.role==="montor"?"Montör":"Kontor";
+  return '<div class="topbar"><div class="brand">Craft<b>Flow</b></div><div style="display:flex;align-items:center;gap:10px"><span class="muted" style="font-size:13px">'+esc(u.name)+' · '+role+'</span><button onclick="refresh()" title="Uppdatera">↻</button><button onclick="logout()">Logga ut</button></div></div>';
+}
+function renderOffice(u){
+  if(VIEW.jobId) return renderJob(u,false);
+  var t=VIEW.tab; var admin=u.role==="agare";
+  if(t==="anvandare"&&!admin) t="jobb";
+  var nav='<div class="tabs">'+tabBtn("jobb","Jobb",t)+tabBtn("nytt","Nytt jobb",t)+tabBtn("lager","Lager",t)+tabBtn("bonus","Bonus & provision",t)+(admin?tabBtn("anvandare","Användare",t):"")+'</div>';
+  var content=t==="nytt"?viewNytt():t==="lager"?viewLager():t==="bonus"?viewBonus():t==="anvandare"?viewUsers():viewJobb();
+  el("app").innerHTML=topbar(u)+'<div class="wrap">'+nav+content+'</div>';
+  if(t==="nytt") initNytt();
+}
+function tabBtn(k,l,c){return '<button class="'+(c===k?"on":"")+'" onclick="go(\''+k+'\')">'+l+'</button>';}
+function go(tab){VIEW.tab=tab;VIEW.jobId=null;render();}
+function metric(l,v){return '<div class="metric"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>';}
+
+function viewJobb(){
+  var jobs=DB.jobs;
+  var totRev=jobs.reduce(function(a,j){return a+j.rev;},0);
+  var open=jobs.filter(function(j){return ["avslutad","fakturerad"].indexOf(j.status)<0;}).length;
+  var estSum=jobs.reduce(function(a,j){return a+j.est;},0);
+  var bonusSum=jobs.reduce(function(a,j){return a+jobBonus(j)+sellerComm(j);},0);
+  var rows=jobs.map(function(j){return '<tr style="cursor:pointer" onclick="openJob(\''+j.id+'\')"><td><span class="num">'+j.num+'</span> &nbsp;<b style="font-weight:500">'+esc(j.kund)+'</b><div class="hint">'+esc(j.region)+'</div></td><td class="muted">'+esc(j.typ)+'</td><td>'+avatars(j.montorer,j.lead)+'</td><td class="muted">'+esc(first(j.saljare))+'</td><td>'+pill(j.status)+'</td><td class="right muted">'+j.hours+'/'+j.est+' h</td><td class="right">'+kr(j.rev)+'</td></tr>';}).join("");
+  return '<div class="grid4" style="margin-bottom:16px">'+metric("Öppna jobb",open)+metric("Omsättning",kr(totRev))+metric("Uppskattad tid",estSum+" h")+metric("Bonus + provision",kr(bonusSum))+'</div>'
+  +'<div style="border:0.5px solid var(--line);border-radius:var(--r2);overflow:hidden"><table><thead><tr><th>Jobb</th><th>Typ</th><th>Montörer</th><th>Säljare</th><th>Status</th><th class="right">Tid</th><th class="right">Värde</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7" class="hint">Inga jobb ännu.</td></tr>')+'</tbody></table></div>'
+  +'<div class="hint" style="margin-top:8px">Klicka på ett jobb för att öppna det.</div>';
+}
+function viewLager(){
+  var inv=DB.inventory;
+  var low=inv.filter(function(i){return i.stock<i.reorder;});
+  var totVal=inv.reduce(function(a,i){return a+i.stock*i.cost;},0);
+  var rows=inv.map(function(i){
+    var st=i.stock<i.reorder?'<span class="pill" style="background:var(--dangerbg);color:var(--danger)">Lågt lager</span>':(i.stock<i.reorder*1.25?'<span class="pill" style="background:var(--warnbg);color:var(--warn)">Snart slut</span>':'<span class="pill" style="background:var(--okbg);color:var(--ok)">OK</span>');
+    return '<tr><td><b style="font-weight:500">'+esc(i.name)+'</b><div class="hint">'+esc(i.sku||"")+'</div></td><td class="muted">'+esc(i.cat||"")+'</td><td class="right" style="font-weight:500;'+(i.stock<i.reorder?'color:var(--danger)':'')+'">'+i.stock+' '+esc(i.unit)+'</td><td class="right muted">'+i.reorder+' '+esc(i.unit)+'</td><td>'+st+'</td><td class="right">'+kr(i.stock*i.cost)+'</td><td class="right"><button onclick="restock(\''+i.id+'\')">Inleverans</button></td></tr>';
+  }).join("");
+  var moves=DB.moves.map(function(m){return '<tr><td><b style="font-weight:500">'+esc(m.item)+'</b></td><td class="muted">'+esc(m.why)+'</td><td class="hint">'+esc(m.by)+' · '+esc(m.when)+'</td><td class="right" style="font-weight:500;color:'+(m.qty<0?'var(--danger)':'var(--ok)')+'">'+(m.qty>0?"+":"")+m.qty+'</td></tr>';}).join("");
+  return '<div class="grid3" style="margin-bottom:16px">'+metric("Artiklar",inv.length)+metric("Lågt lager",low.length)+metric("Lagervärde",kr(totVal))+'</div>'
+  +(low.length?'<div class="card" style="background:var(--dangerbg);border-color:var(--dangerline)"><b style="font-weight:500;color:var(--danger)">Beställningslista ('+low.length+')</b><div style="color:var(--danger);font-size:13px;margin-top:4px">'+low.map(function(i){return esc(i.name)+" ("+i.stock+" "+esc(i.unit)+" kvar)";}).join(" · ")+'</div></div>':'')
+  +'<div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button class="primary" onclick="addItem()">+ Ny artikel</button></div>'
+  +'<div style="border:0.5px solid var(--line);border-radius:var(--r2);overflow:hidden;margin-bottom:18px"><table><thead><tr><th>Artikel</th><th>Kategori</th><th class="right">Saldo</th><th class="right">Best.nivå</th><th>Status</th><th class="right">Värde</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+  +'<div style="font-size:16px;font-weight:500;margin-bottom:8px">Senaste lagerrörelser</div>'
+  +'<div style="border:0.5px solid var(--line);border-radius:var(--r2);overflow:hidden"><table><tbody>'+(moves||'<tr><td class="hint">Inga rörelser ännu.</td></tr>')+'</tbody></table></div>';
+}
+function restock(id){var it=DB.inventory.find(function(x){return x.id===id;});var v=prompt("Inleverans av "+it.name+" — antal:","10");if(v===null)return;var n=parseFloat(v);if(isNaN(n)||n===0)return;run(async function(){var s=client();var u=await s.from("inventory_items").update({stock_qty:Math.round((it.stock+n)*10)/10}).eq("id",id);if(u.error)throw u.error;await s.from("inventory_movements").insert({item_id:id,change_qty:n,reason:"restock",created_by:SESSION});});}
+function addItem(){var name=prompt("Artikelnamn:");if(!name)return;var cost=parseFloat(prompt("Inköpspris (kr):","0"))||0;var reorder=parseFloat(prompt("Beställningsnivå:","10"))||0;run(async function(){var r=await client().from("inventory_items").insert({company_id:COMPANY,name:name,category:"Övrigt",unit:"st",unit_cost:cost,stock_qty:0,reorder_level:reorder});if(r.error)throw r.error;});}
+
+function viewBonus(){
+  var jobs=DB.jobs;
+  var meRole=(DB.people.find(function(p){return p.id===SESSION;})||{}).role; var admin=meRole==="agare"; var brc=DB.bonusRules;
+  var editor=admin?('<div class="card" style="max-width:560px"><div style="font-size:15px;font-weight:500;margin-bottom:4px">Bonusinställningar</div><div class="hint" style="margin-bottom:10px">Procentsatser gäller alla anställda.</div><div class="grid3"><div><label>Montör 5★ (%)</label><input id="br5" type="number" step="0.5" value="'+pct(brc.montor[5])+'"></div><div><label>Montör 4★ (%)</label><input id="br4" type="number" step="0.5" value="'+pct(brc.montor[4])+'"></div><div><label>Säljare (%)</label><input id="brs" type="number" step="0.5" value="'+pct(brc.saljare_rate)+'"></div></div><button class="primary" style="margin-top:12px" onclick="saveBonusRules()">Spara inställningar</button></div>'):'';
+  var perRows=DB.people.map(function(p){
+    var rs=reviewShareFor(p.id), cm=commissionFor(p.id), aj=adjForUser(p.id,false), tot=rs+cm+aj;
+    if(!rs&&!cm&&!aj) return "";
+    return '<tr><td><b style="font-weight:500">'+esc(p.name)+'</b></td><td class="right">'+(rs?kr(rs):'–')+'</td><td class="right">'+(cm?kr(cm):'–')+'</td><td class="right" style="'+(aj<0?'color:var(--danger)':'')+'">'+(aj?kr(aj):'–')+'</td><td class="right" style="font-weight:500">'+kr(tot)+'</td></tr>';
+  }).filter(Boolean).join("");
+  var perTable='<div style="font-size:15px;font-weight:500;margin:0 0 8px">Bonus per anställd</div>'
+   +'<div style="border:0.5px solid var(--line);border-radius:var(--r2);overflow:hidden"><table><thead><tr><th>Anställd</th><th class="right">Omdöme</th><th class="right">Provision</th><th class="right">Justering</th><th class="right">Totalt</th></tr></thead><tbody>'+(perRows||'<tr><td colspan="5" class="hint">Inget ännu.</td></tr>')+'</tbody></table></div>';
+  var adjForm=admin?('<div class="card" style="max-width:620px"><div style="font-size:15px;font-weight:500;margin-bottom:10px">Lägg till bonusjustering</div><div class="grid3"><div><label>Anställd</label><select id="adj_user">'+DB.people.map(function(p){return '<option value="'+p.id+'">'+esc(p.name)+'</option>';}).join("")+'</select></div><div><label>Belopp (kr, +/-)</label><input id="adj_amount" type="number" placeholder="t.ex. 1000 eller -500"></div><div><label>Anledning</label><input id="adj_reason" placeholder="t.ex. extra helgjobb"></div></div><button class="primary" style="margin-top:12px" onclick="addAdjustment()">Lägg till justering</button></div>'):'';
+  var adjList=(DB.adjustments||[]).slice().sort(function(a,b){return (a.created_at<b.created_at)?1:-1;}).map(function(a){
+    return '<tr><td>'+esc(person(a.user_id))+'</td><td class="right" style="font-weight:500;'+(Number(a.amount)<0?'color:var(--danger)':'')+'">'+kr(a.amount)+'</td><td class="muted">'+esc(a.reason||"")+'</td><td class="hint">'+fmtWhen(a.created_at)+'</td>'+(admin?('<td class="right"><button onclick="editAdjustment(\''+a.id+'\')">Ändra</button> <button onclick="delAdjustment(\''+a.id+'\')">Ta bort</button></td>'):'')+'</tr>';
+  }).join("");
+  var adjSection='<div style="font-size:15px;font-weight:500;margin:18px 0 8px">Justeringar</div>'+adjForm
+   +'<div style="border:0.5px solid var(--line);border-radius:var(--r2);overflow:hidden"><table><thead><tr><th>Anställd</th><th class="right">Belopp</th><th>Anledning</th><th>Datum</th>'+(admin?'<th></th>':'')+'</tr></thead><tbody>'+(adjList||'<tr><td colspan="'+(admin?5:4)+'" class="hint">Inga justeringar.</td></tr>')+'</tbody></table></div>';
+  var details=jobs.filter(function(j){return j.review;}).map(function(j){return '<tr><td><span class="num">'+j.num+'</span> '+esc(j.kund)+'</td><td class="center">'+"★".repeat(j.review)+'</td><td class="right">'+kr(j.rev)+'</td><td class="right">'+pct(bonusRate(j.review))+'%</td><td class="right" style="font-weight:500">'+kr(jobBonus(j))+'</td><td class="muted" style="font-size:12px">'+j.montorer.map(first).join(", ")+'</td></tr>';}).join("");
+  return editor + perTable + adjSection
+   +'<div style="font-size:15px;font-weight:500;margin:18px 0 8px">Bonusgrundande jobb</div>'
+   +'<div style="border:0.5px solid var(--line);border-radius:var(--r2);overflow:hidden"><table><thead><tr><th>Jobb</th><th class="center">Omdöme</th><th class="right">Värde</th><th class="right">Sats</th><th class="right">Bonus</th><th>Montörer</th></tr></thead><tbody>'+(details||'<tr><td colspan="6" class="hint">Inga omdömen ännu.</td></tr>')+'</tbody></table></div>';
+}
+function saveBonusRules(){
+  var v5=parseFloat(el("br5").value), v4=parseFloat(el("br4").value), vs=parseFloat(el("brs").value);
+  if(isNaN(v5)||isNaN(v4)||isNaN(vs)){alert("Fyll i alla procentsatser.");return;}
+  var params={montor:{"5":v5/100,"4":v4/100}, saljare_rate:vs/100};
+  run(async function(){
+    if(!DB.bonusRulesId){ var ins=await client().from("bonus_rules").insert({company_id:COMPANY,name:"Standard",params:params}); if(ins.error)throw ins.error; }
+    else { var r=await client().from("bonus_rules").update({params:params}).eq("id",DB.bonusRulesId); if(r.error)throw r.error; }
+  });
+}
+function addAdjustment(){
+  var uid=el("adj_user").value; var amount=parseFloat(el("adj_amount").value); var reason=(el("adj_reason").value||"").trim();
+  if(!uid||isNaN(amount)){alert("Välj anställd och belopp.");return;}
+  run(async function(){ var r=await client().from("bonus_adjustments").insert({company_id:COMPANY,user_id:uid,amount:amount,reason:reason||null,created_by:SESSION}); if(r.error)throw r.error; });
+}
+function editAdjustment(id){
+  var a=(DB.adjustments||[]).find(function(x){return x.id===id;}); if(!a)return;
+  var amt=prompt("Nytt belopp (kr, +/-):",a.amount); if(amt===null)return; var n=parseFloat(amt); if(isNaN(n)){alert("Ogiltigt belopp.");return;}
+  var reason=prompt("Anledning:",a.reason||""); if(reason===null)return;
+  run(async function(){ var r=await client().from("bonus_adjustments").update({amount:n,reason:reason||null}).eq("id",id); if(r.error)throw r.error; });
+}
+function delAdjustment(id){ if(!confirm("Ta bort justeringen?"))return; run(async function(){ var r=await client().from("bonus_adjustments").delete().eq("id",id); if(r.error)throw r.error; }); }
+
+function todayISO(){return new Date().toISOString().slice(0,10);}
+function isAbsent(id,day){return (DB.absences||[]).some(function(a){return a.user_id===id && a.day===day;});}
+function isBusy(id){return DB.jobs.some(function(j){return j.montorer.indexOf(id)>=0 && ["schemalagd","tilldelad","pagaende","material"].indexOf(j.status)>=0;});}
+
+var JTEAM=[];
+function viewNytt(){
+  var today=todayISO();
+  return '<div style="max-width:660px;margin:0 auto" class="card"><div style="font-size:18px;font-weight:500;margin-bottom:16px">Nytt jobb</div>'
+  +'<div style="margin-bottom:14px"><label>Kund</label><input id="n_kund" list="kundlist" placeholder="Kundnamn"><datalist id="kundlist">'+DB.customers.map(function(c){return '<option value="'+esc(c)+'">';}).join("")+'</datalist></div>'
+  +'<div class="grid2" style="margin-bottom:14px"><div><label>Jobbtyp</label><select id="n_typ" onchange="suggestEst()">'+DB.types.map(function(t){return '<option>'+esc(t)+'</option>';}).join("")+'</select></div><div><label>Region</label><select id="n_region"><option>Stockholm</option><option>Uppsala</option><option>Västerås</option></select></div></div>'
+  +'<div class="grid2" style="margin-bottom:14px"><div><label>Datum</label><input type="date" id="n_datum" value="'+today+'" onchange="paintTeam()"></div><div><label>Adress</label><input id="n_adress" placeholder="Gata, ort"></div></div>'
+  +'<label>Team — dra tillgängliga montörer till jobbet (eller klicka)</label>'
+  +'<div class="grid2" style="margin:6px 0 14px"><div><div class="hint" style="margin-bottom:6px">Montörer</div><div id="pool" class="dropwrap"></div></div><div><div class="hint" style="margin-bottom:6px">Jobbets team</div><div id="team" class="dropwrap" ondragover="event.preventDefault()" ondrop="dropTeam(event)"></div></div></div>'
+  +'<div style="margin-bottom:14px"><label>Säljare</label><select id="n_saljare">'+DB.people.filter(function(p){return p.role==="saljare";}).map(function(p){return '<option value="'+p.id+'">'+esc(p.name)+'</option>';}).join("")+'</select></div>'
+  +'<div class="grid2" style="margin-bottom:16px"><div><label>Uppskattad tid (h)</label><input id="n_est" type="number" step="0.5"><div id="n_hint" class="hint" style="margin-top:5px"></div></div><div><label>Jobbvärde (kr)</label><input id="n_rev" type="number" placeholder="0"></div></div>'
+  +'<div class="row"><button class="primary" onclick="createJob()">Skapa jobb</button><button onclick="go(\'jobb\')">Avbryt</button></div></div>';
+}
+function initNytt(){ JTEAM=[]; paintTeam(); suggestEst(); }
+function montCard(p,inTeam,day){
+  var tag="";
+  if(!inTeam){ if(isAbsent(p.id,day)) tag='<span class="ldr" style="color:var(--danger);background:var(--dangerbg)">ledig</span>'; else if(isBusy(p.id)) tag='<span class="ldr" style="color:var(--warn);background:var(--warnbg)">upptagen</span>'; }
+  if(inTeam && JTEAM[0]===p.id) tag='<span class="ldr">Lagledare</span>';
+  return '<div class="ucard" draggable="true" ondragstart="dragUser(event,\''+p.id+'\')" onclick="'+(inTeam?'fromTeam':'toTeam')+'(\''+p.id+'\')">'
+   +'<span class="av'+(inTeam&&JTEAM[0]===p.id?' lead':'')+'">'+esc(ini(p.name))+'</span><span>'+esc(p.name.split(" ")[0])+'</span>'+tag+'</div>';
+}
+function paintTeam(){
+  var pool=el("pool"),team=el("team"); if(!pool||!team)return;
+  var day=(el("n_datum")&&el("n_datum").value)||todayISO();
+  var monts=DB.people.filter(function(p){return p.role==="montor";});
+  pool.innerHTML=monts.filter(function(p){return JTEAM.indexOf(p.id)<0;}).map(function(p){return montCard(p,false,day);}).join("")||'<div class="hint">Alla tillagda</div>';
+  team.innerHTML=JTEAM.length?JTEAM.map(function(id){var p=DB.people.find(function(x){return x.id===id;});return p?montCard(p,true,day):"";}).join(""):'<div class="hint">Dra hit montörer</div>';
+}
+function dragUser(e,id){ if(e.dataTransfer)e.dataTransfer.setData("text/plain",id); }
+function dropTeam(e){ e.preventDefault(); var id=e.dataTransfer?e.dataTransfer.getData("text/plain"):""; if(id)toTeam(id); }
+function toTeam(id){ if(JTEAM.indexOf(id)<0)JTEAM.push(id); paintTeam(); }
+function fromTeam(id){ JTEAM=JTEAM.filter(function(x){return x!==id;}); paintTeam(); }
+function suggestEst(){var t=el("n_typ").value;var d=DB.typeMap[t]?DB.typeMap[t].def:"";el("n_est").value=d;el("n_hint").innerHTML='Föreslås från "'+esc(t)+'" ('+d+' h) — ändra fritt';}
+function createJob(){
+  var kund=(el("n_kund").value||"").trim(); if(!kund){alert("Ange kund.");return;}
+  var typ=el("n_typ").value, region=el("n_region").value, adress=(el("n_adress").value||"").trim();
+  var day=(el("n_datum")&&el("n_datum").value)||null;
+  var saljare=el("n_saljare").value, est=parseFloat(el("n_est").value)||0, rev=parseFloat(el("n_rev").value)||0;
+  var mont=JTEAM.slice();
+  if(!mont.length){alert("Dra minst en montör till teamet.");return;}
+  run(async function(){
+    var s=client();
+    var cid=DB.custMap[kund];
+    if(!cid){ var ic=await s.from("customers").insert({company_id:COMPANY,name:kund}).select("id").single(); if(ic.error)throw ic.error; cid=ic.data.id; }
+    var ins=await s.from("jobs").insert({company_id:COMPANY,customer_id:cid,title:typ,job_type_id:(DB.typeMap[typ]||{}).id,service_address:adress,region:region,status:"tilldelad",estimated_hours:est,total_revenue:rev,scheduled_start:day,created_by:SESSION}).select("id").single();
+    if(ins.error)throw ins.error;
+    var jid=ins.data.id;
+    var rows=mont.map(function(m,i){return {job_id:jid,user_id:m,role_on_job:i===0?"lead":"helper"};});
+    rows.push({job_id:jid,user_id:saljare,role_on_job:"saljare"});
+    var ia=await s.from("job_assignments").insert(rows); if(ia.error)throw ia.error;
+    VIEW.tab="jobb";
+  });
+}
+function dayDiff(d1,d2){ return Math.round((new Date(d2)-new Date(d1))/86400000); }
+function groupAbsences(list){
+  var out=[],cur=null;
+  list.forEach(function(a){
+    if(cur && (a.reason||"")===cur.reason && dayDiff(cur.to,a.day)===1){ cur.to=a.day; cur.ids.push(a.id); }
+    else { cur={from:a.day,to:a.day,reason:a.reason||"",ids:[a.id]}; out.push(cur); }
+  });
+  return out;
+}
+function adjForUser(uid,monthOnly){var ym=new Date().toISOString().slice(0,7);var s=0;(DB.adjustments||[]).forEach(function(a){if(a.user_id===uid){if(monthOnly&&String(a.created_at||"").slice(0,7)!==ym)return;s+=Number(a.amount)||0;}});return s;}
+function reviewShareFor(uid){var s=0;DB.jobs.forEach(function(j){if(j.review&&j.montorer.length&&j.montorer.indexOf(uid)>=0){s+=jobBonus(j)/j.montorer.length;}});return s;}
+function commissionFor(uid){var s=0;DB.jobs.forEach(function(j){if(j.saljare===uid){s+=sellerComm(j);}});return s;}
+function montorBonus(uid,monthOnly){
+  var ym=new Date().toISOString().slice(0,7); var sum=0;
+  DB.jobs.forEach(function(j){
+    if(j.review && j.montorer.length && j.montorer.indexOf(uid)>=0){
+      if(monthOnly){ var d=String(j.reviewDate||j.completedAt||""); if(d.slice(0,7)!==ym) return; }
+      sum+=jobBonus(j)/j.montorer.length;
+    }
+  });
+  sum+=adjForUser(uid,monthOnly);
+  return Math.round(sum);
+}
+function addAbsenceRange(){
+  var from=el("abs_from").value, to=el("abs_to").value||from, reason=(el("abs_reason").value||"").trim();
+  if(!from){alert("Välj startdatum.");return;}
+  if(to<from){alert("Slutdatum kan inte vara före startdatum.");return;}
+  var days=[],d=new Date(from),end=new Date(to),guard=0;
+  while(d<=end && guard<400){ days.push(d.toISOString().slice(0,10)); d.setDate(d.getDate()+1); guard++; }
+  var rows=days.map(function(day){return {user_id:SESSION,day:day,reason:reason||null};});
+  run(async function(){ var r=await client().from("absences").upsert(rows,{onConflict:"user_id,day"}); if(r.error)throw r.error; });
+}
+function removePeriod(idsCsv){ var ids=idsCsv.split(","); run(async function(){ var r=await client().from("absences").delete().in("id",ids); if(r.error)throw r.error; }); }
+
+// ===== admin: user management =====
+function viewUsers(){
+  var rows=DB.people.map(function(p){
+    var role=p.role==="montor"?"Montör":p.role==="saljare"?"Säljare":p.role==="agare"?"Ägare":"Kontor";
+    return '<tr><td><span class="av" style="margin-right:8px">'+esc(ini(p.name))+'</span><b style="font-weight:500">'+esc(p.name)+'</b></td><td class="muted">'+esc(p.email||"")+'</td><td>'+role+'</td><td class="right">'+(p.id===SESSION?'<span class="hint">du</span>':'<button onclick="delUser(\''+p.id+'\',\''+esc(p.name)+'\')">Ta bort</button>')+'</td></tr>';
+  }).join("");
+  return '<div class="card" style="max-width:600px"><div style="font-size:16px;font-weight:500;margin-bottom:14px">Lägg till användare</div>'
+   +'<div class="grid2" style="margin-bottom:12px"><div><label>Namn</label><input id="u_name" placeholder="För- och efternamn"></div><div><label>E-post</label><input id="u_email" type="email" placeholder="namn@pureflow.se"></div></div>'
+   +'<div style="margin-bottom:12px"><label>Roll</label><select id="u_role"><option value="montor">Montör</option><option value="saljare">Säljare</option><option value="kontor">Kontor</option><option value="agare">Ägare</option></select></div>'
+   +'<button class="primary" onclick="addUser()">Lägg till</button>'
+   +'<div class="hint" style="margin-top:10px">Personen får ett mejl med en inbjudan att sätta sitt lösenord och kan sedan logga in direkt.</div></div>'
+   +'<div style="border:0.5px solid var(--line);border-radius:var(--r2);overflow:hidden"><table><thead><tr><th>Namn</th><th>E-post</th><th>Roll</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+function addUser(){
+  var name=(el("u_name").value||"").trim(); var email=(el("u_email").value||"").trim(); var role=el("u_role").value;
+  if(!name||!email){alert("Fyll i namn och e-post.");return;}
+  run(async function(){
+    var res=await client().functions.invoke("invite-user",{body:{name:name,email:email,role:role}});
+    var errMsg=(res.data&&res.data.error)||(res.error&&res.error.message);
+    if(errMsg)throw new Error(errMsg);
+    alert("Inbjudan skickad till "+email+". Personen sätter sitt lösenord via mejlet och kan sedan logga in.");
+  });
+}
+function delUser(id,name){
+  if(id===SESSION){alert("Du kan inte ta bort dig själv.");return;}
+  if(!confirm("Ta bort "+name+"?"))return;
+  run(async function(){
+    var r=await client().from("users").delete().eq("id",id);
+    if(r.error)throw new Error("Kunde inte ta bort – personen kan ha kopplade jobb. Avaktivera i Supabase istället.");
+  });
+}
+
+// boot
+boot();
+</script>
+</body>
+</html>
