@@ -650,35 +650,58 @@ function delUser(id){
 }
 function openUser(id){VIEW.userId=id;render();}
 function closeUser(){VIEW.userId=null;render();}
+function userJobLines(id){
+  var lines=[];
+  DB.jobs.forEach(function(j){
+    if(j.review && j.montorer.length && j.montorer.indexOf(id)>=0){
+      lines.push({num:j.num,kund:j.kund,desc:"Omdömesbonus "+"★".repeat(j.review)+(j.montorer.length>1?(" · delas på "+j.montorer.length):""),amount:Math.round(jobBonus(j)/j.montorer.length),kind:"mont"});
+    }
+    if(j.saljare===id){
+      var c=Math.round(j.rev*userRate(id));
+      if(c>0) lines.push({num:j.num,kund:j.kund,desc:"Provision "+pct(userRate(id))+"% av "+kr(j.rev),amount:c,kind:"sell"});
+    }
+  });
+  return lines;
+}
 function viewUserDetail(id){
   var p=DB.people.find(function(x){return x.id===id;});
   if(!p){closeUser();return "";}
   var role=p.role==="montor"?"Montör":p.role==="saljare"?"Säljare":p.role==="agare"?"Ägare":"Kontor";
-  var rs=reviewShareFor(id), calc=calcCommission(id), comm=commissionFor(id), aj=adjForUser(id,false);
   var override=hasOverride(id);
-  var tot=rs+comm+aj;
+  var jobLines=userJobLines(id);
+  var montSum=jobLines.filter(function(l){return l.kind==="mont";}).reduce(function(a,l){return a+l.amount;},0);
+  var sellApplied=commissionFor(id);
+  var manual=(DB.adjustments||[]).filter(function(a){return a.user_id===id;}).slice().sort(function(a,b){return (a.created_at<b.created_at)?1:-1;});
+  var manualSum=manual.reduce(function(a,x){return a+(Number(x.amount)||0);},0);
+  var total=montSum+sellApplied+manualSum;
   var rateVal=(p.commission_rate!=null&&p.commission_rate!=="")?pct(Number(p.commission_rate)):"";
-  var ovrVal=override?(Number(p.commission_override)):"";
-  var defPct=pct(sellerRate());
+
+  var jobRows=jobLines.map(function(l){
+    var muted=(l.kind==="sell"&&override);
+    return '<tr'+(muted?' style="opacity:.5"':'')+'><td><span class="num">'+l.num+'</span> '+esc(l.kund)+'</td><td class="muted" style="font-size:12px">'+l.desc+(muted?' · ej tillämpad':'')+'</td><td class="right">'+kr(l.amount)+'</td><td></td></tr>';
+  }).join("");
+  if(override) jobRows+='<tr><td><b style="font-weight:500">Fast provision</b></td><td class="muted" style="font-size:12px">Överstyr beräknad provision</td><td class="right" style="font-weight:500">'+kr(Number(p.commission_override))+'</td><td></td></tr>';
+  var manualRows=manual.map(function(a){
+    return '<tr><td><b style="font-weight:500">Manuellt tillägg</b><div class="hint">'+fmtWhen(a.created_at)+'</div></td><td class="muted">'+esc(a.reason||"—")+'</td><td class="right" style="font-weight:500;'+(Number(a.amount)<0?'color:var(--danger)':'')+'">'+kr(a.amount)+'</td><td class="right"><button onclick="delAdjustment(\''+a.id+'\')">Ta bort</button></td></tr>';
+  }).join("");
+  var bodyRows=(jobRows+manualRows)||'<tr><td colspan="4" class="hint">Inga provisioner ännu.</td></tr>';
+
   return '<a class="link" onclick="closeUser()">&larr; Alla användare</a>'
    +'<div style="display:flex;gap:10px;align-items:center;margin:12px 0 16px"><span class="av" style="width:38px;height:38px;font-size:14px">'+esc(ini(p.name))+'</span><div><div style="font-size:18px;font-weight:500">'+esc(p.name)+'</div><div class="muted" style="font-size:13px">'+role+(p.email?(' · '+esc(p.email)):'')+'</div></div></div>'
-   +'<div class="card" style="max-width:560px"><div style="font-size:15px;font-weight:500;margin-bottom:4px">Provision</div>'
-   +'<div class="hint" style="margin-bottom:12px">Sätt en egen provisionssats för '+esc(p.name.split(" ")[0])+', eller skriv ett fast belopp som överstyr beräkningen helt.</div>'
-   +'<div class="grid2">'
-   +'<div><label>Provisionssats (%)</label><input id="c_rate" type="number" step="0.5" value="'+rateVal+'" placeholder="Standard '+defPct+'%"></div>'
-   +'<div><label>Fast provision (kr) – överstyr</label><input id="c_override" type="number" step="100" value="'+ovrVal+'" placeholder="Lämna tomt för beräknad"></div>'
-   +'</div>'
-   +'<div class="row" style="margin-top:12px"><button class="primary" onclick="saveCommission(\''+id+'\')">Spara provision</button><button onclick="closeUser()">Avbryt</button></div>'
-   +'<div style="border-top:0.5px solid var(--line);margin-top:14px;padding-top:12px">'
-   +'<div style="display:flex;justify-content:space-between;font-size:14px;padding:3px 0"><span class="muted">Beräknad provision ('+(rateVal!==""?rateVal:defPct)+'% av sålda jobb)</span><span>'+kr(calc)+'</span></div>'
-   +(override?('<div style="display:flex;justify-content:space-between;font-size:14px;padding:3px 0"><span class="muted">Fast provision (överstyr)</span><span style="font-weight:500">'+kr(Number(p.commission_override))+'</span></div>'):'')
-   +'<div style="display:flex;justify-content:space-between;font-size:14px;padding:3px 0;font-weight:500"><span>Provision som gäller</span><span>'+kr(comm)+'</span></div>'
-   +'</div></div>'
-   +'<div class="card" style="max-width:560px"><div style="font-size:15px;font-weight:500;margin-bottom:8px">Total ersättning</div>'
-   +'<div style="display:flex;justify-content:space-between;font-size:14px;padding:3px 0"><span class="muted">Omdömesbonus</span><span>'+kr(rs)+'</span></div>'
-   +'<div style="display:flex;justify-content:space-between;font-size:14px;padding:3px 0"><span class="muted">Provision</span><span>'+kr(comm)+'</span></div>'
-   +'<div style="display:flex;justify-content:space-between;font-size:14px;padding:3px 0"><span class="muted">Justeringar</span><span style="'+(aj<0?'color:var(--danger)':'')+'">'+kr(aj)+'</span></div>'
-   +'<div style="display:flex;justify-content:space-between;font-size:15px;padding:6px 0 0;border-top:0.5px solid var(--line);margin-top:6px;font-weight:500"><span>Totalt</span><span>'+kr(tot)+'</span></div></div>';
+   +'<div class="card" style="max-width:620px"><div style="font-size:15px;font-weight:500;margin-bottom:6px">Lägg till manuell provision</div>'
+   +'<div class="hint" style="margin-bottom:10px">För något som inte finns i systemet — t.ex. 1000 kr för ett extra uppdrag. Skriv negativt belopp för avdrag.</div>'
+   +'<div class="grid2"><div><label>Belopp (kr, +/-)</label><input id="ua_amount" type="number" placeholder="t.ex. 1000"></div><div><label>Kommentar</label><input id="ua_reason" placeholder="t.ex. extra helgjobb"></div></div>'
+   +'<button class="primary" style="margin-top:12px" onclick="addUserAdjustment(\''+id+'\')">Lägg till</button></div>'
+   +'<div style="font-size:15px;font-weight:500;margin:18px 0 8px">Provisioner & ersättning</div>'
+   +'<div style="border:0.5px solid var(--line);border-radius:var(--r2);overflow:hidden"><table><thead><tr><th>Jobb / post</th><th>Kommentar</th><th class="right">Belopp</th><th></th></tr></thead><tbody>'
+   +bodyRows
+   +'<tr><td style="font-weight:500">Totalt</td><td></td><td class="right" style="font-weight:500">'+kr(total)+'</td><td></td></tr>'
+   +'</tbody></table></div>'
+   +'<div class="card" style="max-width:560px;margin-top:18px"><div style="font-size:15px;font-weight:500;margin-bottom:4px">Provisionssats</div>'
+   +'<div class="hint" style="margin-bottom:12px">Egen provisionssats för '+esc(p.name.split(" ")[0])+', eller ett fast belopp som överstyr den beräknade provisionen.</div>'
+   +'<div class="grid2"><div><label>Provisionssats (%)</label><input id="c_rate" type="number" step="0.5" value="'+rateVal+'" placeholder="Standard '+pct(sellerRate())+'%"></div>'
+   +'<div><label>Fast provision (kr) – överstyr</label><input id="c_override" type="number" step="100" value="'+(override?Number(p.commission_override):"")+'" placeholder="Lämna tomt"></div></div>'
+   +'<div class="row" style="margin-top:12px"><button class="primary" onclick="saveCommission(\''+id+'\')">Spara sats</button></div></div>';
 }
 function saveCommission(id){
   var rateRaw=(el("c_rate").value||"").trim().replace(",",".");
@@ -689,6 +712,15 @@ function saveCommission(id){
   if(ovrRaw!==""&&isNaN(ovr)){alert("Ogiltigt belopp.");return;}
   run(async function(){
     var r=await client().from("users").update({commission_rate:rate===null?null:rate/100,commission_override:ovr}).eq("id",id);
+    if(r.error)throw r.error;
+  });
+}
+function addUserAdjustment(id){
+  var amount=parseFloat((el("ua_amount").value||"").replace(",","."));
+  var reason=(el("ua_reason").value||"").trim();
+  if(isNaN(amount)||amount===0){alert("Ange ett belopp (t.ex. 1000 eller -500).");return;}
+  run(async function(){
+    var r=await client().from("bonus_adjustments").insert({company_id:COMPANY,user_id:id,amount:amount,reason:reason||null,created_by:SESSION});
     if(r.error)throw r.error;
   });
 }
