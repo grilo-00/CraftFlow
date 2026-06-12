@@ -75,7 +75,7 @@ var FLOW=["ny","schemalagd","tilldelad","pagaende","material","slutford","omdome
 var BONUS={5:0.07,4:0.05}; var SELLER_RATE=0.05;
 
 var sb=null, DB=null, SESSION=null, COMPANY=null, BUSY=false;
-var VIEW={tab:"jobb",jobId:null,addSrc:"lager",authed:false};
+var VIEW={tab:"jobb",jobId:null,userId:null,addSrc:"lager",authed:false};
 
 // ===== helpers =====
 function el(id){return document.getElementById(id);}
@@ -99,7 +99,7 @@ function client(){ if(!sb){ sb=window.supabase.createClient(SB_URL,SB_KEY); } re
 
 async function loadAll(){
   var s=client();
-  var users=await s.from("users").select("id,name,role,email,company_id").eq("active",true);
+  var users=await s.from("users").select("id,name,role,email,company_id,commission_rate,commission_override").eq("active",true);
   if(users.error) throw users.error;
   var people=users.data||[];
   COMPANY=people.length?people[0].company_id:null;
@@ -402,12 +402,12 @@ function renderOffice(u){
   var t=VIEW.tab; var admin=u.role==="agare";
   if(t==="anvandare"&&!admin) t="jobb";
   var nav='<div class="tabs">'+tabBtn("jobb","Jobb",t)+tabBtn("nytt","Nytt jobb",t)+tabBtn("lager","Lager",t)+tabBtn("bonus","Bonus & provision",t)+(admin?tabBtn("anvandare","Användare",t):"")+'</div>';
-  var content=t==="nytt"?viewNytt():t==="lager"?viewLager():t==="bonus"?viewBonus():t==="anvandare"?viewUsers():viewJobb();
+  var content=t==="nytt"?viewNytt():t==="lager"?viewLager():t==="bonus"?viewBonus():t==="anvandare"?(VIEW.userId?viewUserDetail(VIEW.userId):viewUsers()):viewJobb();
   el("app").innerHTML=topbar(u)+'<div class="wrap">'+nav+content+'</div>';
   if(t==="nytt") initNytt();
 }
 function tabBtn(k,l,c){return '<button class="'+(c===k?"on":"")+'" onclick="go(\''+k+'\')">'+l+'</button>';}
-function go(tab){VIEW.tab=tab;VIEW.jobId=null;render();}
+function go(tab){VIEW.tab=tab;VIEW.jobId=null;VIEW.userId=null;render();}
 function metric(l,v){return '<div class="metric"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>';}
 
 function viewJobb(){
@@ -415,7 +415,7 @@ function viewJobb(){
   var totRev=jobs.reduce(function(a,j){return a+j.rev;},0);
   var open=jobs.filter(function(j){return ["avslutad","fakturerad"].indexOf(j.status)<0;}).length;
   var estSum=jobs.reduce(function(a,j){return a+j.est;},0);
-  var bonusSum=jobs.reduce(function(a,j){return a+jobBonus(j)+sellerComm(j);},0);
+  var bonusSum=jobs.reduce(function(a,j){return a+jobBonus(j);},0)+DB.people.reduce(function(a,p){return a+commissionFor(p.id);},0);
   var rows=jobs.map(function(j){return '<tr style="cursor:pointer" onclick="openJob(\''+j.id+'\')"><td><span class="num">'+j.num+'</span> &nbsp;<b style="font-weight:500">'+esc(j.kund)+'</b><div class="hint">'+esc(j.region)+'</div></td><td class="muted">'+esc(j.typ)+'</td><td>'+avatars(j.montorer,j.lead)+'</td><td class="muted">'+esc(first(j.saljare))+'</td><td>'+pill(j.status)+'</td><td class="right muted">'+j.hours+'/'+j.est+' h</td><td class="right">'+kr(j.rev)+'</td></tr>';}).join("");
   return '<div class="grid4" style="margin-bottom:16px">'+metric("Öppna jobb",open)+metric("Omsättning",kr(totRev))+metric("Uppskattad tid",estSum+" h")+metric("Bonus + provision",kr(bonusSum))+'</div>'
   +'<div style="border:0.5px solid var(--line);border-radius:var(--r2);overflow:hidden"><table><thead><tr><th>Jobb</th><th>Typ</th><th>Montörer</th><th>Säljare</th><th>Status</th><th class="right">Tid</th><th class="right">Värde</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7" class="hint">Inga jobb ännu.</td></tr>')+'</tbody></table></div>'
@@ -552,7 +552,10 @@ function groupAbsences(list){
 }
 function adjForUser(uid,monthOnly){var ym=new Date().toISOString().slice(0,7);var s=0;(DB.adjustments||[]).forEach(function(a){if(a.user_id===uid){if(monthOnly&&String(a.created_at||"").slice(0,7)!==ym)return;s+=Number(a.amount)||0;}});return s;}
 function reviewShareFor(uid){var s=0;DB.jobs.forEach(function(j){if(j.review&&j.montorer.length&&j.montorer.indexOf(uid)>=0){s+=jobBonus(j)/j.montorer.length;}});return s;}
-function commissionFor(uid){var s=0;DB.jobs.forEach(function(j){if(j.saljare===uid){s+=sellerComm(j);}});return s;}
+function userRate(uid){var p=DB.people.find(function(x){return x.id===uid;});return (p&&p.commission_rate!=null&&p.commission_rate!=="")?Number(p.commission_rate):sellerRate();}
+function hasOverride(uid){var p=DB.people.find(function(x){return x.id===uid;});return !!(p&&p.commission_override!=null&&p.commission_override!=="");}
+function calcCommission(uid){var rate=userRate(uid);var s=0;DB.jobs.forEach(function(j){if(j.saljare===uid){s+=Math.round(j.rev*rate);}});return s;}
+function commissionFor(uid){if(hasOverride(uid)){var p=DB.people.find(function(x){return x.id===uid;});return Number(p.commission_override)||0;}return calcCommission(uid);}
 function montorBonus(uid,monthOnly){
   var ym=new Date().toISOString().slice(0,7); var sum=0;
   DB.jobs.forEach(function(j){
@@ -579,14 +582,14 @@ function removePeriod(idsCsv){ var ids=idsCsv.split(","); run(async function(){ 
 function viewUsers(){
   var rows=DB.people.map(function(p){
     var role=p.role==="montor"?"Montör":p.role==="saljare"?"Säljare":p.role==="agare"?"Ägare":"Kontor";
-    var actions=p.id===SESSION
+    var pwBtns=p.id===SESSION
       ? '<span class="hint">du</span>'
-      : '<div class="row" style="gap:6px;justify-content:flex-end;flex-wrap:nowrap">'
-        +'<button onclick="resetUserPw(\''+p.id+'\')" title="Skicka en återställningslänk via mejl">Nollställ</button>'
+      : '<button onclick="resetUserPw(\''+p.id+'\')" title="Skicka en återställningslänk via mejl">Nollställ</button>'
         +'<button onclick="setUserPw(\''+p.id+'\')" title="Välj ett lösenord åt personen">Sätt lösenord</button>'
-        +'<button onclick="delUser(\''+p.id+'\')" title="Ta bort inloggningen från Supabase">Ta bort</button>'
-        +'</div>';
-    return '<tr><td><span class="av" style="margin-right:8px">'+esc(ini(p.name))+'</span><b style="font-weight:500">'+esc(p.name)+'</b></td><td class="muted">'+esc(p.email||"")+'</td><td>'+role+'</td><td class="right">'+actions+'</td></tr>';
+        +'<button onclick="delUser(\''+p.id+'\')" title="Ta bort inloggningen från Supabase">Ta bort</button>';
+    var actions='<div class="row" style="gap:6px;justify-content:flex-end;flex-wrap:nowrap">'
+        +'<button onclick="openUser(\''+p.id+'\')" title="Visa och ändra provision">Provision</button>'+pwBtns+'</div>';
+    return '<tr><td style="cursor:pointer" onclick="openUser(\''+p.id+'\')"><span class="av" style="margin-right:8px">'+esc(ini(p.name))+'</span><a class="link" style="font-weight:500">'+esc(p.name)+'</a></td><td class="muted">'+esc(p.email||"")+'</td><td>'+role+'</td><td class="right">'+actions+'</td></tr>';
   }).join("");
   return '<div class="card" style="max-width:600px"><div style="font-size:16px;font-weight:500;margin-bottom:14px">Lägg till användare</div>'
    +'<div class="grid2" style="margin-bottom:12px"><div><label>Namn</label><input id="u_name" placeholder="För- och efternamn"></div><div><label>E-post</label><input id="u_email" type="email" placeholder="namn@pureflow.se"></div></div>'
@@ -601,6 +604,8 @@ function addUser(){
   run(async function(){
     var res=await client().functions.invoke("invite-user",{body:{name:name,email:email,role:role}});
     var errMsg=(res.data&&res.data.error)||(res.error&&res.error.message);
+    var exists=(res.data&&res.data.code==="email_exists")||/finns redan|används redan|already|registered|duplicate|unique/i.test(errMsg||"");
+    if(exists){ alert("E-postadressen "+email+" används redan – användaren finns redan i systemet."); return; }
     if(errMsg)throw new Error(errMsg);
     alert("Inbjudan skickad till "+email+". Personen sätter sitt lösenord via mejlet och kan sedan logga in.");
   });
@@ -641,6 +646,50 @@ function delUser(id){
     }else{
       alert(name+" är borttagen från Supabase.");
     }
+  });
+}
+function openUser(id){VIEW.userId=id;render();}
+function closeUser(){VIEW.userId=null;render();}
+function viewUserDetail(id){
+  var p=DB.people.find(function(x){return x.id===id;});
+  if(!p){closeUser();return "";}
+  var role=p.role==="montor"?"Montör":p.role==="saljare"?"Säljare":p.role==="agare"?"Ägare":"Kontor";
+  var rs=reviewShareFor(id), calc=calcCommission(id), comm=commissionFor(id), aj=adjForUser(id,false);
+  var override=hasOverride(id);
+  var tot=rs+comm+aj;
+  var rateVal=(p.commission_rate!=null&&p.commission_rate!=="")?pct(Number(p.commission_rate)):"";
+  var ovrVal=override?(Number(p.commission_override)):"";
+  var defPct=pct(sellerRate());
+  return '<a class="link" onclick="closeUser()">&larr; Alla användare</a>'
+   +'<div style="display:flex;gap:10px;align-items:center;margin:12px 0 16px"><span class="av" style="width:38px;height:38px;font-size:14px">'+esc(ini(p.name))+'</span><div><div style="font-size:18px;font-weight:500">'+esc(p.name)+'</div><div class="muted" style="font-size:13px">'+role+(p.email?(' · '+esc(p.email)):'')+'</div></div></div>'
+   +'<div class="card" style="max-width:560px"><div style="font-size:15px;font-weight:500;margin-bottom:4px">Provision</div>'
+   +'<div class="hint" style="margin-bottom:12px">Sätt en egen provisionssats för '+esc(p.name.split(" ")[0])+', eller skriv ett fast belopp som överstyr beräkningen helt.</div>'
+   +'<div class="grid2">'
+   +'<div><label>Provisionssats (%)</label><input id="c_rate" type="number" step="0.5" value="'+rateVal+'" placeholder="Standard '+defPct+'%"></div>'
+   +'<div><label>Fast provision (kr) – överstyr</label><input id="c_override" type="number" step="100" value="'+ovrVal+'" placeholder="Lämna tomt för beräknad"></div>'
+   +'</div>'
+   +'<div class="row" style="margin-top:12px"><button class="primary" onclick="saveCommission(\''+id+'\')">Spara provision</button><button onclick="closeUser()">Avbryt</button></div>'
+   +'<div style="border-top:0.5px solid var(--line);margin-top:14px;padding-top:12px">'
+   +'<div style="display:flex;justify-content:space-between;font-size:14px;padding:3px 0"><span class="muted">Beräknad provision ('+(rateVal!==""?rateVal:defPct)+'% av sålda jobb)</span><span>'+kr(calc)+'</span></div>'
+   +(override?('<div style="display:flex;justify-content:space-between;font-size:14px;padding:3px 0"><span class="muted">Fast provision (överstyr)</span><span style="font-weight:500">'+kr(Number(p.commission_override))+'</span></div>'):'')
+   +'<div style="display:flex;justify-content:space-between;font-size:14px;padding:3px 0;font-weight:500"><span>Provision som gäller</span><span>'+kr(comm)+'</span></div>'
+   +'</div></div>'
+   +'<div class="card" style="max-width:560px"><div style="font-size:15px;font-weight:500;margin-bottom:8px">Total ersättning</div>'
+   +'<div style="display:flex;justify-content:space-between;font-size:14px;padding:3px 0"><span class="muted">Omdömesbonus</span><span>'+kr(rs)+'</span></div>'
+   +'<div style="display:flex;justify-content:space-between;font-size:14px;padding:3px 0"><span class="muted">Provision</span><span>'+kr(comm)+'</span></div>'
+   +'<div style="display:flex;justify-content:space-between;font-size:14px;padding:3px 0"><span class="muted">Justeringar</span><span style="'+(aj<0?'color:var(--danger)':'')+'">'+kr(aj)+'</span></div>'
+   +'<div style="display:flex;justify-content:space-between;font-size:15px;padding:6px 0 0;border-top:0.5px solid var(--line);margin-top:6px;font-weight:500"><span>Totalt</span><span>'+kr(tot)+'</span></div></div>';
+}
+function saveCommission(id){
+  var rateRaw=(el("c_rate").value||"").trim().replace(",",".");
+  var ovrRaw=(el("c_override").value||"").trim().replace(",",".");
+  var rate=rateRaw===""?null:parseFloat(rateRaw);
+  var ovr=ovrRaw===""?null:parseFloat(ovrRaw);
+  if(rateRaw!==""&&(isNaN(rate)||rate<0)){alert("Ogiltig procentsats.");return;}
+  if(ovrRaw!==""&&isNaN(ovr)){alert("Ogiltigt belopp.");return;}
+  run(async function(){
+    var r=await client().from("users").update({commission_rate:rate===null?null:rate/100,commission_override:ovr}).eq("id",id);
+    if(r.error)throw r.error;
   });
 }
 
